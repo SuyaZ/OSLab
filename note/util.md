@@ -1,0 +1,223 @@
+
+# 学习笔记
+
+[参考文档](https://www.yuque.com/chengxuyuancarl/gxfm6r/bnhk7s3iwfbe8ysi#HXtaA)
+
+[参考教材](https://pdos.csail.mit.edu/6.S081/2020/xv6/book-riscv-rev1.pdf)
+
+[参考教材的中文翻译](https://geekdaxue.co/read/6.S081-All-in-one/tranlate_books-book-riscv-rev1-c1-s2.md)
+
+[实验内容-题目](https://xv6.dgs.zone/labs/requirements/lab1.html)
+
+[调试技巧](http://xv6.dgs.zone/tranlate_books/Use%20GUN%20Debugger.html)
+
+## 系统调用的基本操作
+
+
+### 一些常用命令：
+
+- 运行并构建 xv6 操作系统：`make qemu`
+- 退出 xv6：`Ctrl-a x`（先按 Ctrl+a，再按 x）
+- 测试是否完成 lab：`make grade`
+- 测试是否完成 lab 的子任务：`make GRADEFLAGS=<lab name> grade`
+  - 如在 util lab 中，想测试是否完成子任务 sleep，运行 `make GRADEFLAGS=sleep grade`
+- gdb 调试
+  - 一个终端执行 `make CPUS=1 qemu-gdb`
+  - 在另一个终端执行 `riscv64-unknown-elf-gdb kernel/kernel`
+  - 如果报错 `bash: riscv64-unknown-elf-gdb: command not found` 可参考 [此文](https://blog.csdn.net/csdndogo/article/details/130772956) 解决
+
+
+
+### 基本概念
+
+**文件描述符（File Descriptor，简称fd）** 是计算机科学中的一个术语，用于表示操作系统分配给应用程序的一个整数，该整数是应用程序访问文件或I/O资源的一个引用。
+文件描述符是一个非负整数，通常0、1、2被用作标准输入、标准输出和标准错误。
+特点
+非负整数：文件描述符是一个非负整数，每个文件描述符对应一个打开的文件。
+系统分配：文件描述符由操作系统内核分配和管理。
+用完即弃：当文件关闭时，文件描述符被释放，供系统重新分配。
+
+**头文件(kernel/fcntl.h:1-5)** 中：
+宏定义	 功能说明
+
+O_RDONLY	只读
+
+O_WRONLY	只写
+
+O_RDWR	可读可写
+
+O_CREATE	如果文件不存在则创建文件
+
+O_TRUNC	将文件截断为零长度
+
+### 基本调用
+```cpp
+int fork() 
+Create a process, return child’s PID.
+
+int exit(int status) 
+Terminate the current process; status reported to wait(). No return.
+
+int wait(int *status) 
+Wait for a child to exit; exit status in *status; returns child PID.
+
+int kill(int pid) 
+Terminate process PID. Returns 0, or -1 for error.
+
+int getpid() 
+Return the current process’s PID.
+
+int sleep(int n) 
+Pause for n clock ticks.
+
+int exec(char *file, char *argv[]) 
+Load a file and execute it with arguments; only returns if error.
+
+char *sbrk(int n) 
+Grow process’s memory by n bytes. Returns start of new memory.
+
+int open(char *file, int flags) 
+Open a file; flags indicate read/write; returns an fd (file descriptor).
+
+int write(int fd, char *buf, int n) 
+Write n bytes from buf to file descriptor fd; returns n.
+
+int read(int fd, char *buf, int n) 
+Read n bytes into buf; returns number read; or 0 if end of file.
+
+int close(int fd) 
+Release open file fd.
+
+int dup(int fd) 
+Return a new file descriptor referring to the same file as fd.
+
+int pipe(int p[]) 
+Create a pipe, put read/write file descriptors in p[0] and p[1].
+
+int chdir(char *dir) 
+Change the current directory.
+
+int mkdir(char *dir) 
+Create a new directory.
+
+int mknod(char *file, int, int) 
+Create a device file.
+
+int fstat(int fd, struct stat *st) 
+Place info about an open file into *st.
+
+int stat(char *file, struct stat *st) 
+Place info about a named file into *st.
+
+int link(char *file1, char *file2) 
+Create another name (file2) for the file file1.
+
+int unlink(char *file) 
+Remove a file.
+```
+
+## sleep
+kernel/sysproc.c
+```cpp
+uint64
+sys_sleep(void)
+{
+  int n;
+  uint ticks0;
+
+  if(argint(0, &n) < 0)
+    return -1;
+  acquire(&tickslock);
+  ticks0 = ticks;
+  while(ticks - ticks0 < n){
+    if(myproc()->killed){
+      release(&tickslock);
+      return -1;
+    }
+    sleep(&ticks, &tickslock);
+  }
+  release(&tickslock);
+  return 0;
+}
+```
+这段代码是一个简单的系统调用实现，用于让当前进程睡眠指定的ticks数量。下面我将逐步解释这段代码的作用和工作原理：
+
+### 函数定义
+```c
+uint64
+sys_sleep(void)
+```
+- 这是一个系统调用函数`sys_sleep`，返回类型是`uint64`。
+- 它没有显式的参数，但通过`argint(0, &n)`从用户空间获取一个整数参数`n`，表示睡眠的ticks数量。
+
+### 获取参数
+```c
+if(argint(0, &n) < 0)
+  return -1;
+```
+- `argint(0, &n)`从用户空间获取第一个整数参数，并存储到变量`n`中。
+- 如果获取参数失败，返回-1表示错误。
+
+### 获取当前ticks并加锁
+```c
+acquire(&tickslock);
+ticks0 = ticks;
+```
+- `acquire(&tickslock)`获取一个锁，确保对`ticks`变量的访问是线程安全的。
+- `ticks0 = ticks;`保存当前的ticks值到变量`ticks0`。
+
+### 睡眠循环
+```c
+while(ticks - ticks0 < n){
+  if(myproc()->killed){
+    release(&tickslock);
+    return -1;
+  }
+  sleep(&ticks, &tickslock);
+}
+```
+- 进入一个循环，检查当前ticks与初始ticks的差值是否小于`n`。
+- 如果差值小于`n`，表示还未达到指定的睡眠时间，进程需要继续睡眠。
+- 在循环中，检查当前进程是否被标记为杀死（`myproc()->killed`）。
+  - 如果被杀死，释放锁并返回-1。
+  - 如果未被杀死，调用`sleep(&ticks, &tickslock)`让当前进程进入睡眠状态，等待ticks变化。
+
+### 释放锁并返回
+```c
+release(&tickslock);
+return 0;
+```
+- 当循环结束（即睡眠时间达到），释放锁。
+- 返回0表示成功。
+
+### 总结
+这段代码实现了一个简单的睡眠功能，让当前进程暂停执行指定的ticks数量。它通过以下步骤实现：
+1. 获取用户传入的睡眠ticks数量。
+2. 获取当前ticks值并加锁。
+3. 进入循环，检查是否已达到睡眠时间。
+4. 如果未达到，检查进程是否被杀死，否则进入睡眠等待ticks变化。
+5. 达到睡眠时间后，释放锁并返回成功。
+
+这个实现的关键点在于使用锁确保对共享变量`ticks`的访问是线程安全的，以及通过`sleep`函数让进程在等待ticks变化时不会占用CPU资源。
+
+user/sleep.c写好之后可以根据在linux系统中使用命令来为程序打分
+```bash
+./grade-lab-util sleep
+```
+
+也可以`make qemu`之后，进入xv6系统看系统是否会睡眠,数字越大，效果越明显。
+```bash
+sleep 100
+```
+
+## pingpong
+
+需要注意的是，如果管道的写端没有close，那么管道为空的时候对管道数据的读取将会阻塞。
+因此，对于不需要的管道描述符，要尽早关闭。
+代码在 user/pingpong.c
+
+## primes
+
+[管道+多进程筛选质数](https://swtch.com/~rsc/thread/)
+实现代码在user/primes.c
+

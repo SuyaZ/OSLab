@@ -103,7 +103,7 @@ runcmd(struct cmd *cmd)
       panic("pipe");
     if(fork1() == 0){
       close(1);
-      dup(p[1]);
+      dup(p[1]);  //调用dup(p[1])将管道的写端p[1]复制到文件描述符1，这样标准输出就被重定向到管道的写端。
       close(p[0]);
       close(p[1]);
       runcmd(pcmd->left);
