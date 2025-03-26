@@ -221,3 +221,54 @@ sleep 100
 [管道+多进程筛选质数](https://swtch.com/~rsc/thread/)
 实现代码在user/primes.c
 
+## find 
+
+## 
+
+# git提交流程
+ssh要打开，github的域名要配置
+输入username和用户PAT即可进入。
+```shell
+ubuntu@LAPTOP-BLECCI6K:~/xv6-labs-2020$ git add .
+ubuntu@LAPTOP-BLECCI6K:~/xv6-labs-2020$ git commit -m"find"
+[util fd49b2f] find
+ 2 files changed, 144 insertions(+)
+ create mode 100644 user/find.c
+ubuntu@LAPTOP-BLECCI6K:~/xv6-labs-2020$ git push origin util
+fatal: unable to access 'https://github.com/SuyaZ/OSLab.git/': Failed to connect to github.com port 443: Connection refused
+ubuntu@LAPTOP-BLECCI6K:~/xv6-labs-2020$ sudo nano /etc/hosts
+[sudo] password for ubuntu: 
+ubuntu@LAPTOP-BLECCI6K:~/xv6-labs-2020$ sudo systemctl status ssh
+● ssh.service - OpenBSD Secure Shell server
+     Loaded: loaded (/lib/systemd/system/ssh.service; disabled; vendor preset: enabled)
+     Active: inactive (dead)
+       Docs: man:sshd(8)
+             man:sshd_config(5)
+ubuntu@LAPTOP-BLECCI6K:~/xv6-labs-2020$ sudo systemctl start ssh
+ubuntu@LAPTOP-BLECCI6K:~/xv6-labs-2020$ sudo systemctl status ssh
+● ssh.service - OpenBSD Secure Shell server
+     Loaded: loaded (/lib/systemd/system/ssh.service; disabled; vendor preset: enabled)
+     Active: active (running) since Wed 2025-03-26 20:15:39 CST; 2s ago
+       Docs: man:sshd(8)
+             man:sshd_config(5)
+    Process: 31206 ExecStartPre=/usr/sbin/sshd -t (code=exited, status=0/SUCCESS)
+   Main PID: 31207 (sshd)
+      Tasks: 1 (limit: 9044)
+     Memory: 2.6M
+     CGroup: /system.slice/ssh.service
+             └─31207 sshd: /usr/sbin/sshd -D [listener] 0 of 10-100 startups
+
+ubuntu@LAPTOP-BLECCI6K:~/xv6-labs-2020$ git push origin util
+Username for 'https://github.com': SuyaZ     
+Password for 'https://SuyaZ@github.com': 
+Enumerating objects: 8, done.
+Counting objects: 100% (8/8), done.
+Delta compression using up to 32 threads
+Compressing objects: 100% (5/5), done.
+Writing objects: 100% (5/5), 1.82 KiB | 1.82 MiB/s, done.
+Total 5 (delta 3), reused 0 (delta 0)
+remote: Resolving deltas: 100% (3/3), completed with 3 local objects.
+To https://github.com/SuyaZ/OSLab.git
+   5e2e955..fd49b2f  util -> util
+```
+
