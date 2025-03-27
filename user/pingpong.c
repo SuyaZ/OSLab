@@ -1,4 +1,4 @@
-//Lab01-pingpong
+// //Lab01-pingpong
 
 
 //#include "kernel/stat.h" //结构体stat描述文件的状态信息
@@ -14,21 +14,20 @@ int main(int arg, char** argv)
     if(fork() != 0) //父进程
     {
         //父进程向子进程发送数据
-        write(pp2c[1], "*", 1);
+        write(pp2c[1], ".", 1);
         close(pp2c[1]); //及时关闭写端
 
         //子进程向父进程发数据
         char buff;
         read(pc2p[0], &buff, 1);
-        printf("%d:recieve pong\n",getpid());
+        printf("%d: received pong\n", getpid());
         wait(0);//等待子进程结束，不关心子进程的状态
     }
     else
     {
         char buff;
         read(pp2c[0], &buff, 1);
-        printf("%d:recieve ping\n",getpid());
-
+        printf("%d: received ping\n", getpid());
         write(pc2p[1], &buff, 1);
         close(pc2p[1]);
     }

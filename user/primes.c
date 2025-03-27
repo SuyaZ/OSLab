@@ -10,7 +10,7 @@ void sieve(int pleft[2]) //传递管道作为参数
     int p; //从左邻居进程第一个读取的数,一定是质数。反证法
     read(pleft[0], &p, sizeof(p));
     if(p == -1) exit(0);
-    printf("prime:%d\n", p);
+    printf("prime %d\n", p);
 
     int pright[2];
     pipe(pright);
