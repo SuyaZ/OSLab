@@ -319,4 +319,130 @@ $ trace 2147483647 grep hello README
 最终EOF返回0
 
 
+## Sysinfo
+
+该实验添加一个系统调用，`Sysinfo`，用力啊获取空闲的内存，已创建的进程数量。
+在`kernel/sysinfo.h`中已经声明好了`freemen`空闲存储属性和`nproc`进程数量属性。
+需要把获取的数据赋值在其中。
+
+在用户空间相关文件中添加代码：
+```cpp
+//user/user.h
+struct sysinfo;        //声明sysinfo结构体，使用户程序可以使用这个结构体
+int sysinfo(struct sysinfo*);  //用户程序可以找到sysinfo系统调用的跳板入口函数
+
+//user/usys.pl
+entry("sysinfo");
+
+//Makefile
+UPROGS=\
+	...
+	$U/_sysinfo\
+```
+
+在内核态添加`sysinfo`系统调用编号：
+```cpp
+//kernel/syscall.h
+#define SYS_sysinfo 23
+```
+
+添加系统调用映射：
+```cpp
+//kernel/syscall.c
+extern uint64 sys_sysinfo(void);
+
+static uint64 (*syscalls[])(void) ={
+    ......
+    [SYS_sysinfo] sys_sysinfo,
+}
+
+const char* syscall_names[] ={
+    ......
+    [SYS_sysinfo] "sysinfo",
+}
+```
+
+首先实现获取空闲内存的`freebytes`函数。因为和内存相关，所以在`kernel.kalloc.c`中实现。
+`xv6`采用了一种简单的空闲链表机制来记录空闲的物理内存页，空闲页自身作为链表节点，指向下一个空闲页。
+```cpp
+void
+freebytes(uint64* dst)
+{
+  *dst = 0;
+  struct run* p = kmem.freelist;  //指向空闲物理内存页
+
+  acquire(&kmem.lock); //枷锁保证线程安全
+  while(p) //有空闲页
+  {
+    *dst += PGSIZE;
+    p = p->next;
+  }
+  release(&kmem.lock);
+}
+```
+
+实现统计进程数量的函数`procnum`。该函数在进程相关的`kernel/proc.c`中实现，在这个文件中有一个进程表`struct proc proc[NPROC]`,记录了所有进程，而每一个进程都有一个state属性，表示该进程是否在使用。因此可以得出思路：遍历`proc`进程表，判断当前进程是否在使用，统计数量。
+代码：
+```cpp
+//kernel/proc.c
+//统计处于活动状态的进程
+void
+procnum(uint64* dst)
+{
+    *dst = 0;
+    struct proc* p;
+    for(p = proc; p < &proc[NPROC]; p++)
+    {
+      if(p->state != UNUSED)
+        (*dst)++;
+    }
+}
+```
+
+
+接下来实现`sysinfo`函数，这里先宏观的实现sysinfo的功能，然后再分解实现获取空闲内存和获取进程数的功能。
+这里同样在`kernel/sysproc.c`中实现：
+```cpp
+#include "sysinfo.h"
+
+uint64
+sys_sysinfo(void)
+{
+  struct sysinfo info;
+  freebytes(&info.freemem); //获取空闲内存
+  procnum(&info.nproc);  //获取进程数量
+
+  //获取用户虚拟地址
+  uint64 dstaddr;
+  argaddr(0, &dstaddr);
+
+  //从内核空间拷贝数据到用户空间
+  if(copyout(myproc()->pagetable, dstaddr, (char*)&info, sizeof info) < 0)
+  {
+    return -1;
+  }
+
+  return 0;
+}
+```
+在 `user/sysinfotest.c `中可以看到，用户程序调用 `sysinfo` 系统调用的时候，传入的参数是 `sysinfo` 结构体。因此在上面的代码中，获取到用户空间的 `sysinfo` 结构体地址后，要把内核空间的 `sysinfo` 结构体的数据复制过去，这样用户程序才能拿到数据。
+
+因为`procnum`和`freebytes`不像系统调用那样用了`extern`全局声明，`kernel/sysproc.c` 中的 `sys_sysinfo` 是找不到这两个函数的。这里要在内核头文件 `kernel/defs.h` 声明这两个函数。
+```cpp
+// kalloc.c
+...
+void            freebytes(uint64* dst);
+
+// proc.c
+...
+void            procnum(uint64* dst);
+```
+
+
+测试
+```shell
+$ sysinfotest
+sysinfotest: start
+sysinfotest: OK
+```
 

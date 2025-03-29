@@ -1,6 +1,9 @@
 struct stat;
 struct rtcdate;
 
+struct sysinfo;        //声明sysinfo结构体，使用户程序可以使用这个结构体
+int sysinfo(struct sysinfo*);  //用户程序可以找到sysinfo系统调用的跳板入口函数
+
 // system calls
 int fork(void);
 int exit(int) __attribute__((noreturn));
