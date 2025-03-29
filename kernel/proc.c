@@ -127,6 +127,8 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  p->syscall_trace = 0;  //创建新进程的时候，记录标志默认设置为0
+
   return p;
 }
 
@@ -295,7 +297,11 @@ fork(void)
 
   np->state = RUNNABLE;
 
+  np -> syscall_trace = p -> syscall_trace;  //子进程继承父进程的标志位
+
   release(&np->lock);
+
+  //np -> syscall_trace = p -> syscall_trace;  //子进程继承父进程的标志位
 
   return pid;
 }
@@ -692,4 +698,18 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+uint64
+sys_trace(void)
+{
+    int mask;
+
+    //获取用户程序传入的数据，如果argint()<0, 说明获取参数失败
+    if(argint(0, &mask) < 0) return -1;
+
+    //设置系统调用掩码为mask
+    myproc()->syscall_trace = mask;
+
+    return 0;
 }
